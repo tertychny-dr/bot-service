@@ -9,6 +9,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.filters import Command
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from dotenv import load_dotenv
+from aiohttp import web
 import os
 
 # Загружаем .env
@@ -145,9 +146,35 @@ async def exchange_rate_command(message: Message):
     await message.answer(text, parse_mode="HTML")
 
 
-# Запуск
+async def health_check(request):
+    return web.Response(text="OK")
+
+
+async def run_http_server():
+    app = web.Application()
+    app.router.add_get('/', health_check)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, '0.0.0.0', 8080)  # порт 8080
+    await site.start()
+    print("HTTP health check server started on port 8080")
+    await asyncio.Event().wait()  # не закінчуємо
+
+
+# Запускаємо HTTP-сервер паралельно з polling
 async def main():
-    await dp.start_polling(bot)
+    # Запускаємо polling
+    polling_task = asyncio.create_task(dp.start_polling(bot))
+
+    # Запускаємо фейковий сервер
+    http_task = asyncio.create_task(run_http_server())
+
+    await asyncio.gather(polling_task, http_task)
+
+
+# Запуск
+#async def main():
+#    await dp.start_polling(bot)
 
 
 if __name__ == "__main__":
